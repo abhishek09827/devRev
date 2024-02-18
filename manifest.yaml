@@ -1,0 +1,142 @@
+# For reference: https://github.com/devrev/snap-in-docs/blob/main/references/manifest.md.
+# Refactor the code based on your business logic.
+
+version: "1"
+name: "Work Tracker"
+description: "Logs a message when a work item is created"
+
+# This is the name displayed in DevRev where the Snap-In takes actions using the token of this service account.
+service_account:
+  display_name: DevRev Bot
+
+# Add any external connection, reference: https://github.com/devrev/snap-in-docs/blob/main/references/connections.md.
+
+# Add global values, reference: https://github.com/devrev/snap-in-docs/blob/main/references/manifest.md#globals.
+#globals:
+#  - name: sample_value
+#    description: Sample global value
+#    devrev_field_type: text
+#    is_required: true
+#    default_value: "primary"
+#    ui:
+#      display_name: Sample Value
+
+# Event source reference: https://github.com/devrev/snap-in-docs/blob/main/references/event_sources.md.
+event-sources:
+  - name: devrev-event-source
+    description: Event source listening on DevRev events.
+    display_name: DevRev events listener
+    type: devrev-webhook
+    config:
+      event_types:
+        - work_created
+
+
+inputs:
+  organization:
+    - name: app_id
+      description: "The Google Play id of the application (the ?id= parameter on the url)."
+      field_type: text
+      is_required: true
+      default_value: ""
+      ui:
+        display_name: Application ID
+    - name: default_part_id
+      description: "Default part under which to create tickets."
+      field_type: id
+      id_type:
+        - product
+        - capability
+        - feature
+        - enhancement
+      is_required: true
+      default_value: "don:core:dvrv-us-1:devo/xxx:product/xxx"
+      ui:
+        display_name: Default Part
+    - name: default_owner_id
+      description: "Default owner of the tickets."
+      field_type: id
+      id_type:
+        - devu
+      is_required: true
+      default_value: "don:identity:dvrv-us-1:devo/xxx:devu/xxx"
+      ui:
+        display_name: Default Owner
+    - name: llm_model_to_use
+      description: "Which LLM model to use for the review categorization. Not all might work perfectly, generally prefer a larger model with >= 7B params"
+      field_type: enum
+      allowed_values:
+        - qwen-72b-chat
+        - elyza-japanese-llama-2-7b-fast-instruct
+        - firellava-13b
+        - japanese-llava-mistral-7b
+        - japanese-stablelm-instruct-beta-70b
+        - japanese-stablelm-instruct-gamma-7b
+        - japanese-stable-vlm
+        - llamaguard-7b
+        - llama-v2-13b
+        - llama-v2-13b-chat
+        - llama-v2-13b-code
+        - llama-v2-13b-code-instruct
+        - llama-v2-34b-code
+        - llama-v2-34b-code-instruct
+        - llama-v2-70b
+        - llama-v2-70b-chat
+        - llama-v2-7b
+        - llama-v2-7b-chat
+        - llava-codellama-34b
+        - llava-v15-13b-fireworks
+        - mistral-7b
+        - mistral-7b-instruct-4k
+        - mixtral-8x7b
+        - mixtral-8x7b-instruct
+        - qwen-14b-chat
+        - qwen-1-8b-chat
+        - stablecode
+        - stablelm-zephyr-3b
+        - starcoder-16b-w8a16
+        - starcoder-7b-w8a16
+        - yi-34b-200k-capybara
+        - yi-6b
+        - zephyr-7b-beta
+      is_required: true
+      default_value: "mixtral-8x7b-instruct"
+      ui:
+        display_name: LLM Model to use.
+
+
+tags:
+  - name: bug
+    description: "This is a bug"
+  - name: feature_request
+    description: "This is a feature request"
+  - name: question
+    description: "This is a question"
+  - name: feedback
+    description: "This is a feedback"
+  - name: failed_to_infer_category
+    description: "Failed to infer category"
+
+
+commands:
+  - name: on_work_creation
+    namespace: devrev
+    description: Fetches reviews from Google Playstore and creates tickets
+    surfaces:
+      - surface: discussions
+        object_types:
+          - snap_in
+    usage_hint: "/on_work_creation [number of reviews to fetch and process]"
+    function: on_work_creation
+# Functions reference: https://github.com/devrev/snap-in-docs/blob/main/references/functions.md.
+functions:
+  - name: on_work_creation
+    description: function to trigger on work creation
+
+# Automations reference: https://github.com/devrev/snap-in-docs/blob/main/references/event_sources.md.
+automations:
+  - name: handle-work-created-event
+    source: devrev-event-source
+    event_types:
+      - work_created
+    function: on_work_creation
