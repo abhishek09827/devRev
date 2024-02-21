@@ -1,10 +1,14 @@
 import { fetchData } from './insta'; // Import fetchData if it's defined in another file
 import {client, publicSDK } from '@devrev/typescript-sdk';
 import { ApiUtils, HTTPResponse } from './utils';
-import { LLMUtils } from './llm_utils';
+import { performAnalysis } from './llm_utils';
+// import { fetchTimeline } from './twitter';
+
 console.log('1');
 
 export const run = async (events: any[]) => {
+
+  
   for (const event of events) {
     const endpoint: string = event.execution_metadata.devrev_endpoint;
     const token: string = event.context.secrets.service_account_token;
@@ -15,7 +19,6 @@ export const run = async (events: any[]) => {
     // let parameters: string = event.payload.parameters.trim();
     const tags = event.input_data.resources.tags;
     const apiUtil: ApiUtils = new ApiUtils(endpoint, token);
-    const llmUtil: LLMUtils = new LLMUtils("key", "accounts/fireworks/models/mixtral-8x7b-instruct", 200);
     let commentID: string | undefined;
     let numReviews = 10;
 
@@ -66,70 +69,78 @@ export const run = async (events: any[]) => {
 
     // Call Instagram API to fetch the requested number of reviews.
     
-      const response= await fetchData(); // Assuming fetchData is a function that fetches Instagram data
-      const reviews = response.data.comments;
-      console.log(response);
+      // const response= await fetchData(); // Assuming fetchData is a function that fetches Instagram data
+      // const reviews = response.data.comments;
+      // console.log(response);
       
-      
+      const reviews: string[] = [
+        "I absolutely love the new update! The interface is much cleaner and more intuitive.",
+        "Unfortunately, the app crashes frequently on my device since the last update. I hope this gets fixed soon.",
+       ];
       let count = 0; 
        // Assuming response contains review data from Instagram
       // Proceed with processing the reviews...
       // For each review, create a ticket in DevRev.
       for (const review of reviews) {
         if(count >= 10) break;
-        const reviewText = `Ticket created from Instagram review ${review.pk}\n\n${review.text}`;
-      const reviewTitle = review.title || `Ticket created from Instagram review ${review.pk}`;
-      const reviewID = review.pk;
+        
         // Post a progress message saying creating ticket for review with review URL posted.
         postResp = await apiUtil.postTextMessageWithVisibilityTimeout(snapInId, `Creating ticket for review: ${review}`, 1);
+        console.log(postResp);
         
         if (!postResp.success) {
           console.error(`Error while creating timeline entry: ${postResp.message}`);
           continue;
         }
-         
-    const systemPrompt = `You are an expert at labelling a given Google Play Store Review as bug, feature_request, question or feedback. You are given a review provided by a user for the app ${"A"}. You have to label the review as bug, feature_request, question or feedback. The output should be a JSON with fields "category" and "reason". The "category" field should be one of "bug", "feature_request", "question" or "feedback". The "reason" field should be a string explaining the reason for the category. \n\nReview: {review}\n\nOutput:`;
-    const humanPrompt = ``;
+        const reviewText = `Ticket created from Instagram review ${"review.pk"}\n\n${review}`;
+        const reviewTitle = "review.title" || `Ticket created from Instagram review ${"review.pk"}`;
+        const reviewID = "review.pk";
 
-
-  let llmResponse = {};
-  try {
-    llmResponse = await llmUtil.chatCompletion(systemPrompt, humanPrompt,  {review: (reviewTitle ? reviewTitle + '\n' + reviewText: reviewText)})
-    console.log(llmResponse);
     
-  } catch (err) {
-    console.error(`Error while calling LLM: ${err}`);
-  }
+    const llmResponse = await performAnalysis(review)
+  console.log(llmResponse);
+  
+  const parsedData = JSON.parse(llmResponse.entityTagging);
 
-  // let tagsToApply = [];
-  //   let inferredCategory = 'failed_to_infer_category';
-  //   if ('category' in llmResponse) {
-  //     inferredCategory = llmResponse['category'] as string;
-  //     if (!(inferredCategory in tags)) {
-  //       inferredCategory = 'failed_to_infer_category';
-  //     }
-  //   }
+// Get category
+const category = parsedData.category;
+  const entityTaggingCategories = category;
+  console.log(entityTaggingCategories);
+  
+  // const entityTaggingCategories = llmResponse.entityTagging.entities.reduce((categories: Categories, entity: any) => {
+  //   categories[entity.category.entity] = entity.category.type;
+  //   return categories;
+  // }, {});
+
+  
+  
+
+  
+   
+
+  console.log("before");
     // Create a ticket with title as review title and description as review text.
     const createTicketResp = await apiUtil.createTicket({
-      title: "reviewTitle",
-      body: "reviewText",
-      tags: tags,
+      title: reviewTitle,
+      body: review,
+      tags: entityTaggingCategories,
       type: publicSDK.WorkType.Ticket,
       owned_by: ["DEVU-5"],
       applies_to_part: "ENH-9",
     });
-    console.log(createTicketResp.data);
+    console.log("response",createTicketResp);
     
-    if (!createTicketResp.success) {
-      console.error(`Error while creating ticket: ${createTicketResp.message}`);
-      continue;
-    }
     
+    // if (!createTicketResp.success) {
+    //   console.error(`Error while creating ticket: ${createTicketResp.message}`);
+    //   continue;
+    // }
+  
     // Post a message with ticket ID.
-    const ticketID = createTicketResp.data;
-    const ticketCreatedMessage = `Created ticket: <${1}> and it is categorized as ${1}`;
+    // const ticketID = createTicketResp.data;
+    const ticketCreatedMessage = `Created ticket and it is categorized as ${entityTaggingCategories}`;
     const postTicketResp: HTTPResponse  = await apiUtil.postTextMessageWithVisibilityTimeout(snapInId, ticketCreatedMessage, 1);
-    console.log(postTicketResp);
+    console.log(2);
     
     if (!postTicketResp.success) {
       console.error(`Error while creating timeline entry: ${postTicketResp.message}`);
@@ -138,9 +149,10 @@ export const run = async (events: any[]) => {
     count++ ;
         // Proceed with creating tickets and other operations...
       }
+    }
    
     
-  }
+  
  
 };
 
